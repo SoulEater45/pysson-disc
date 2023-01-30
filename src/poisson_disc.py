@@ -1,5 +1,10 @@
 import numpy as np
 
+
+def __hypersphere_point(n: int, m: int=1):
+    positions = np.random.normal(size=(m, n))
+    return positions / np.sum(positions**2, axis=1)
+
 def poisson_disc_samples(bounds, radii, repetitions=30, distance=np.hypot):
     """Generate samples in [0, width] x [0, height] using a Poisson-disc
     algorithm.
@@ -28,47 +33,53 @@ def poisson_disc_samples(bounds, radii, repetitions=30, distance=np.hypot):
 
     """
 
-    if isinstance(radii, np.typing.ArrayLike):
+    if isinstance(radii, np.ndarray):
         radii_sampling = lambda: np.random.choice(radii)
+        rmax, rmin = [max(radii), min(radii)]
     elif callable(radii):
         radii_sampling = lambda: radii()
     else:
-        raise("radii must be an array or a function")
+        raise("radii must be an numpy.ndarray or a function")
 
-    # cell_size = r / np.sqrt(2)
+    dimensions = len(bounds)
+    cell_size = 2 * rmin / np.sqrt(dimensions)
+    grid_radius = lambda r: np.ceil((rmax + r) / cell_size)
 
-    # grid_width = int(np.ceil(width / cell_size))
-    # grid_height = int(np.ceil(height / cell_size))
-    # grid = [None] * (grid_width * grid_height)
+    # Step 0
+    cell_bounds = np.ceil(bounds / cell_size).astype(int)
+    background_grid = np.zeros(tuple(cell_bounds) + (dimensions + 1, )) * np.nan
 
-    # def grid_coords(p):
-    #     return int(p[0] // cell_size), int(p[1] // cell_size)
+    # Step 1
+    position = np.random.uniform(size=dimensions) * bounds
+    position_index = tuple(np.ceil(position / cell_size).astype(int))
 
-    # def fits(p):
-    #     x, y = grid_coords(p)
-    #     for i in range(max(x - 2, 0), min(x + 3, grid_width)):
-    #         for j in range(max(y - 2, 0), min(y + 3, grid_height)):
-    #             g = grid[i + j * grid_width]
-    #             if g is not None and distance(p, g) < r:
-    #                 return False
-    #     return True
+    background_grid[position_index] = np.append(position, radii_sampling())
+    active = [background_grid[position_index]]
 
-    # active = []
+    # Step 2
+    safe_stop = 10
+    safe_counter = 0
+    while ~len(active) and safe_counter < safe_stop:
+        active_index = np.random.randint(len(active))
+        active_position = active[active_index][:-1]
+        active_radius = active[active_index][-1]
 
-    # def add_to_grid(p):
-    #     x, y = grid_coords(p)
-    #     grid[x + y * grid_width] = p
-    #     active.append(p)
+        found = False
+        for j in range(repetitions):
+            test_radius = radii_sampling()
+            test_position = active_position + test_radius * np.squeeze(__hypersphere_point(dimensions, 1) * (test_radius + active_radius + np.min((test_radius, active_radius)) * np.random.rand()))
+            
+            test_grid_radius = grid_radius(test_radius)
+            position_index = tuple(np.ceil(test_position / cell_size).astype(int))
+            
 
-    # p0 = np.random.uniform(0, width), np.random.uniform(0, height)
-    # add_to_grid(p0)
+        # Delete after testing
+        safe_counter += 1
 
-    # while active:
-    #     i = np.random.randint(len(active))
-    #     p = active[i]
-    #     found = False
-    #     for j in range(k):
-    #         a = 2 * np.pi * np.random.uniform(0, 1)
-    #         d = np.random.uniform(r, 2 * r)
-    #         x = p[0] + d * np.cos(a)
-    #         y = p[1] + d * np
+    # extract coresponding points and radii from grid
+    samples_mask = np.any(~np.isnan(background_grid), axis=-1)
+    samples = background_grid[samples_mask]
+    points = samples[:, :-1]
+    radii = samples[:, -1]
+
+    return points, radii

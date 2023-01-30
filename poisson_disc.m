@@ -107,50 +107,51 @@ if isstruct(radii)
     end
     w = 2*radii.rmin / sqrt(nN);
     funGridRadius = @(r) ceil((radii.rmax+r+fO)/w);
-    if bVis
-        cmap = @(r) interp1(linspace(radii.rmin, radii.rmax, 256), jet, r);
-    end
+    % if bVis
+    %     cmap = @(r) interp1(linspace(radii.rmin, radii.rmax, 256), jet, r);
+    % end
 else
     funSample = @() radii(randi(length(radii)));
     w = 2 * min(radii) / sqrt(nN);
     funGridRadius = @(r) ceil((max(radii)+r+fO)/w);
-    if bVis
-        cmap = @(r) interp1(radii, jet(length(radii)), r);
-    end
+    % if bVis
+    %     cmap = @(r) interp1(radii, jet(length(radii)), r);
+    % end
 end
 
-if bVis
-    figure;
-    set(gcf, 'WindowState', 'maximized');
-end
+% if bVis
+%     figure;
+%     set(gcf, 'WindowState', 'maximized');
+% end
 
 %% Step 0
 if bSphere
     space = space * 2;
 end
+
 bgGrid = cell(ceil(space / w));
 bgGridRadii = zeros(ceil(space / w));
 
 %% Step 1
 if bSphere
-    if bVis
-        if nN == 2
-            plot(...
-                space(1)*(1+cos(linspace(0,2*pi)))/2, ...
-                space(2)*(1+sin(linspace(0,2*pi)))/2, ...
-                'Color', 'k');
-        elseif nN == 3
-            [xS, yS, zS] = sphere;
-            surf(...
-                space(1)/2 .* (1+xS), ...  % Shift and scale x data
-                space(2)/2 .* (1+yS), ...  % Shift and scale y data
-                space(3)/2 .* (1+zS), ...  % Shift and scale z data
-                'EdgeColor', 'none', ...
-                'FaceColor', 'k');
-            hold on;
-        end
-        alpha(.05);
-    end
+    % if bVis
+    %     if nN == 2
+    %         plot(...
+    %             space(1)*(1+cos(linspace(0,2*pi)))/2, ...
+    %             space(2)*(1+sin(linspace(0,2*pi)))/2, ...
+    %             'Color', 'k');
+    %     elseif nN == 3
+    %         [xS, yS, zS] = sphere;
+    %         surf(...
+    %             space(1)/2 .* (1+xS), ...  % Shift and scale x data
+    %             space(2)/2 .* (1+yS), ...  % Shift and scale y data
+    %             space(3)/2 .* (1+zS), ...  % Shift and scale z data
+    %             'EdgeColor', 'none', ...
+    %             'FaceColor', 'k');
+    %         hold on;
+    %     end
+    %     alpha(.05);
+    % end
     
     pos = (hypersphere(2*pi*rand(nN-1,1), 1)' .* rand(1,nN) + 1) .* space / 2;
 else
@@ -164,32 +165,32 @@ active = cell(1,1);
 active{1} = pos;
 activeRadii = bgGridRadii(p);
 
-if bVis
-    axis equal;
-    if nN == 2
-        rectangle('Position', [bgGrid{p}, 3*bgGridRadii(p), 3*bgGridRadii(p)]-bgGridRadii(p), ...
-            'Curvature', [1 1], ...
-            'FaceColor', cmap(bgGridRadii(p)));
-        axis([0, space(1), 0, space(2)]);
-    elseif nN == 3
-        [xS, yS, zS] = sphere;
-        surf(...
-            bgGrid{p}(1)+xS.*bgGridRadii(p), ...  % Shift and scale x data
-            bgGrid{p}(2)+yS.*bgGridRadii(p), ...  % Shift and scale y data
-            bgGrid{p}(2)+zS.*bgGridRadii(p), ...  % Shift and scale z data
-            'EdgeColor', 'none', ...
-            'FaceColor', cmap(bgGridRadii(p)));
-        axis([0, space(1), 0, space(2), 0, space(3)]);
-        zticks(0:w:space(3));
-        set(gca,'zticklabel',[]);
-    end
-    xticks(0:w:space(1));
-    yticks(0:w:space(2));
-    set(gca,'xticklabel',[]);
-    set(gca,'yticklabel',[]);
-    grid on;
-    hold on;
-end
+% if bVis
+%     axis equal;
+%     if nN == 2
+%         rectangle('Position', [bgGrid{p}, 3*bgGridRadii(p), 3*bgGridRadii(p)]-bgGridRadii(p), ...
+%             'Curvature', [1 1], ...
+%             'FaceColor', cmap(bgGridRadii(p)));
+%         axis([0, space(1), 0, space(2)]);
+%     elseif nN == 3
+%         [xS, yS, zS] = sphere;
+%         surf(...
+%             bgGrid{p}(1)+xS.*bgGridRadii(p), ...  % Shift and scale x data
+%             bgGrid{p}(2)+yS.*bgGridRadii(p), ...  % Shift and scale y data
+%             bgGrid{p}(2)+zS.*bgGridRadii(p), ...  % Shift and scale z data
+%             'EdgeColor', 'none', ...
+%             'FaceColor', cmap(bgGridRadii(p)));
+%         axis([0, space(1), 0, space(2), 0, space(3)]);
+%         zticks(0:w:space(3));
+%         set(gca,'zticklabel',[]);
+%     end
+%     xticks(0:w:space(1));
+%     yticks(0:w:space(2));
+%     set(gca,'xticklabel',[]);
+%     set(gca,'yticklabel',[]);
+%     grid on;
+%     hold on;
+% end
 
 %% Step 2
 while ~isempty(active)
