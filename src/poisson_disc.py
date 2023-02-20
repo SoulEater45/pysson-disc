@@ -1,11 +1,12 @@
 import numpy as np
-
+from numba import jit
 
 def __hypersphere_point(n: int, m: int=1):
     positions = np.random.normal(size=(m, n))
-    return positions / np.sum(positions**2, axis=1)
+    return positions / np.sqrt(np.sum(positions**2, axis=1))
 
-def poisson_disc_samples(bounds, radii, repetitions=30, distance=np.hypot):
+@jit(nopython=False)
+def poisson_disc_samples(bounds, radii, repetitions=30):
     """Generate samples in [0, width] x [0, height] using a Poisson-disc
     algorithm.
 
@@ -39,42 +40,70 @@ def poisson_disc_samples(bounds, radii, repetitions=30, distance=np.hypot):
     elif callable(radii):
         radii_sampling = lambda: radii()
     else:
-        raise("radii must be an numpy.ndarray or a function")
+        raise(f"""
+            radii: 
+                expected: numpy.ndarray or lambda function
+                received: {type(radii)}""")
 
     dimensions = len(bounds)
     cell_size = 2 * rmin / np.sqrt(dimensions)
-    grid_radius = lambda r: np.ceil((rmax + r) / cell_size)
+    grid_radius = lambda r: np.ceil((rmax + r) / cell_size).astype(int)
+    # grid_radius = lambda r: int((rmax + r) // cell_size)
 
     # Step 0
     cell_bounds = np.ceil(bounds / cell_size).astype(int)
     background_grid = np.zeros(tuple(cell_bounds) + (dimensions + 1, )) * np.nan
 
     # Step 1
-    position = np.random.uniform(size=dimensions) * bounds
-    position_index = tuple(np.ceil(position / cell_size).astype(int))
+    radius = radii_sampling()
+    position = np.random.uniform(size=dimensions) * (bounds - 2 * radius) + radius
+    position_index = tuple(np.floor(position / cell_size).astype(int))
 
-    background_grid[position_index] = np.append(position, radii_sampling())
-    active = [background_grid[position_index]]
+    background_grid[position_index] = np.append(position, radius)
+    active_list = [background_grid[position_index]]
 
     # Step 2
-    safe_stop = 10
-    safe_counter = 0
-    while ~len(active) and safe_counter < safe_stop:
-        active_index = np.random.randint(len(active))
-        active_position = active[active_index][:-1]
-        active_radius = active[active_index][-1]
+    while len(active_list) > 0:
+        active_index = np.random.randint(len(active_list))
+        active_position = active_list[active_index][:-1]
+        active_radius = active_list[active_index][-1]
 
         found = False
         for j in range(repetitions):
             test_radius = radii_sampling()
-            test_position = active_position + test_radius * np.squeeze(__hypersphere_point(dimensions, 1) * (test_radius + active_radius + np.min((test_radius, active_radius)) * np.random.rand()))
+            test_position = active_position + np.squeeze(__hypersphere_point(dimensions, 1) * (test_radius + active_radius + np.min((test_radius, active_radius)) * np.random.rand()))
+
+            if np.any(test_position < test_radius) or np.any(test_position > bounds - test_radius):
+                continue
             
             test_grid_radius = grid_radius(test_radius)
-            position_index = tuple(np.ceil(test_position / cell_size).astype(int))
-            
+            position_index = tuple(np.floor(test_position / cell_size).astype(int))
 
-        # Delete after testing
-        safe_counter += 1
+            # selecting negibouring cells:
+            # https://stackoverflow.com/a/56103114/4434071
+            indexing = np.ix_([*(np.r_[np.max([0, position_index_coordinate - test_grid_radius]):np.min([shape_coordinate, position_index_coordinate + test_grid_radius + 1])] for (position_index_coordinate, shape_coordinate) in zip(position_index, background_grid.shape[:-1]))])
+            neighbourhood = background_grid[indexing]
+            if neighbourhood.size == 0 or np.all(np.isnan(neighbourhood)):
+                continue
+            neighbourhood = neighbourhood.reshape(-1, neighbourhood.shape[-1])
+
+            # neighbourhood_positions = neighbourhood[..., :-1]
+            neighbourhood_positions = neighbourhood[:, :-1]
+            neighbourhood_radii = neighbourhood[:, -1]
+            collision = np.any(np.sum((test_position[np.newaxis, :] - neighbourhood_positions)**2, axis=-1) < (test_radius + neighbourhood_radii)**2)
+            if collision:
+                continue
+
+            data = np.append(test_position, test_radius)
+            active_list.append(data)
+            background_grid[position_index] = data
+            found = True
+            break
+
+        if not found:
+            active_list.pop(active_index)
+    
+    print(len(active_list))
 
     # extract coresponding points and radii from grid
     samples_mask = np.any(~np.isnan(background_grid), axis=-1)
